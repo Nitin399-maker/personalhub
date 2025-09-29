@@ -24,26 +24,47 @@ async function init() {
     elements.btnSignIn.addEventListener('click', signInWithGoogle);
     elements.btnSignOut.addEventListener('click', signOut);
     elements.noteForm.addEventListener('submit', handleNoteSubmit);
+    await autoConnectIfCredentialsExist();
+}
+
+async function autoConnectIfCredentialsExist() {
+    const storedUrl = localStorage.getItem('supabase_url');
+    const storedKey = localStorage.getItem('supabase_key');
+    if (storedUrl && storedKey) {
+        SUPABASE_URL = storedUrl;
+        SUPABASE_ANON_KEY = storedKey;
+        elements.supabaseUrl.value = SUPABASE_URL;
+        elements.supabaseKey.value = SUPABASE_ANON_KEY;
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            elements.configSection.classList.add('d-none');
+            elements.btnSignIn.disabled = false;
+            elements.authHint.textContent = 'Please sign in to create and view your notes.';
+            supabase.auth.onAuthStateChange((event, session) => {
+                event === 'SIGNED_IN' ? handleUserSignedIn(session.user) : event === 'SIGNED_OUT' && handleUserSignedOut();
+            });
+            await checkExistingSession();
+        } catch (error) {
+            localStorage.removeItem('supabase_url');
+            localStorage.removeItem('supabase_key');
+            elements.configSection.classList.remove('d-none');
+        }
+    }
 }
 
 function connectToSupabase() {
     SUPABASE_URL = elements.supabaseUrl.value.trim();
     SUPABASE_ANON_KEY = elements.supabaseKey.value.trim();
-    
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        return alert('Please enter both Supabase URL and Anon Key.');
-    }
-    
     try {
+        localStorage.setItem('supabase_url', SUPABASE_URL);
+        localStorage.setItem('supabase_key', SUPABASE_ANON_KEY);
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         elements.configSection.classList.add('d-none');
         elements.btnSignIn.disabled = false;
         elements.authHint.textContent = 'Please sign in to create and view your notes.';
-        
         supabase.auth.onAuthStateChange((event, session) => {
             event === 'SIGNED_IN' ? handleUserSignedIn(session.user) : event === 'SIGNED_OUT' && handleUserSignedOut();
         });
-        
         checkExistingSession();
     } catch (error) {
         alert('Error connecting to Supabase. Please check your credentials.');
@@ -54,7 +75,9 @@ async function checkExistingSession() {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) handleUserSignedIn(session.user);
-    } catch (error) { handleUserSignedOut(); }
+    } catch (error) { 
+        if (!window.location.hash.includes('access_token')) {  handleUserSignedOut();  }
+    }
 }
 
 async function signInWithGoogle() {
@@ -62,14 +85,11 @@ async function signInWithGoogle() {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: { 
-                redirectTo: "https://nitin399-maker.github.io/personalhub/"
+                redirectTo: window.location.origin + window.location.pathname
             }
         });
         if (error) throw error;
-    } catch (error) {
-        console.error('Auth error:', error);
-        alert('Error signing in. Please try again.');
-    }
+    } catch (error) {   alert('Error signing in. Please try again.');  }
 }
 
 async function signOut() {
@@ -84,6 +104,8 @@ async function forceSignOut() {
     [...Object.keys(localStorage), ...Object.keys(sessionStorage)].forEach(key => {
         (key.includes('supabase') || key.includes('sb-')) && (localStorage.removeItem(key), sessionStorage.removeItem(key));
     });
+    localStorage.removeItem('supabase_url');
+    localStorage.removeItem('supabase_key');
     handleUserSignedOut();
     window.location.reload();
 }
@@ -92,6 +114,7 @@ function handleUserSignedIn(user) {
     currentUser = user;
     updateUI({btnSignIn:'d-none', btnSignOut: '',userEmail: '', authHint: 'd-none',noteSection: ''});
     elements.userEmail.textContent = user.email;
+    if (window.location.hash) {window.history.replaceState(null, null, window.location.pathname);}
     loadNotes();
 }
 
@@ -105,7 +128,7 @@ function handleUserSignedOut() {
 
 function updateUI(classes) {
     Object.entries(classes).forEach(([element, className]) => {
-        elements[element].className = elements[element].className.replace(/d-none/g, '').trim() + (className ? `${className}` : '');
+        elements[element].className = elements[element].className.replace(/d-none/g, '').trim() + (className ? ` ${className}` : '');
     });
 }
 
