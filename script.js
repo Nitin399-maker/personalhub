@@ -61,7 +61,7 @@ async function signInWithGoogle() {
     try {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: "https://nitin399-maker.github.io/personalhub/" }
+            options: {  redirectTo: window.location.origin }
         });
         if (error) throw error;
     } catch (error) {
