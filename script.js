@@ -59,11 +59,6 @@ async function checkExistingSession() {
 
 async function signInWithGoogle() {
     try {
-        // Temporary: Log the actual redirect URI being used
-        console.log('Current location:', window.location.href);
-        console.log('Origin:', window.location.origin);
-        console.log('Pathname:', window.location.pathname);
-        
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: { 
